@@ -1,6 +1,7 @@
 local pairwise_utils = require 'pairwise_transform_utils'
 local iproc = require 'iproc'
-local gm = require 'graphicsmagick'
+local gm = {}
+gm.Image = require 'graphicsmagick.Image'
 local pairwise_transform = {}
 
 function pairwise_transform.scale(src, scale, size, offset, n, options)
@@ -37,10 +38,7 @@ function pairwise_transform.scale(src, scale, size, offset, n, options)
       assert(x:size(1) == y:size(1) and x:size(2) * scale == y:size(2) and x:size(3) * scale == y:size(3))
    end
    local batch = {}
-   local lowres_y = gm.Image(y, "RGB", "DHW"):
-      size(y:size(3) * 0.5, y:size(2) * 0.5, "Box"):
-      size(y:size(3), y:size(2), "Box"):
-      toTensor(t, "RGB", "DHW")
+   local lowres_y = pairwise_utils.low_resolution(y)
    local xs, ys, ls, _ = pairwise_utils.flip_augmentation(x, y, lowres_y)
    for i = 1, n do
       local t = (i % #xs) + 1
@@ -53,8 +51,10 @@ function pairwise_transform.scale(src, scale, size, offset, n, options)
       yc = iproc.byte2float(yc)
       if options.rgb then
       else
-	 yc = image.rgb2yuv(yc)[1]:reshape(1, yc:size(2), yc:size(3))
-	 xc = image.rgb2yuv(xc)[1]:reshape(1, xc:size(2), xc:size(3))
+	 if xc:size(1) > 1 then
+	    yc = iproc.rgb2y(yc)
+	    xc = iproc.rgb2y(xc)
+	 end
       end
       table.insert(batch, {xc, iproc.crop(yc, offset, offset, size - offset, size - offset)})
    end
